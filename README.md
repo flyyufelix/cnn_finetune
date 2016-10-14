@@ -1,14 +1,11 @@
-# finetune_neural_network
+# Fine-tune CNN in Keras
 
-Starter Scripts to fine-tune Convolutional Neural Networks in Keras
+### Implementation is available for the following CNN models:
 
-Implementation is available for the following CNN models:
+* VGG16 - `vgg16.py`
+* VGG19 - `vgg19.py`
+* GoogLeNet (InceptionV1) - `googlenet.py`
+* InceptionV3 - `inception_v3.py`
+* ResNet - `resnet.py`
 
-VGG16 - vgg16.py
-VGG19 - vgg19.py
-GoogLeNet (InceptionV1) - googlenet.py
-InceptionV3 - inception_v3.py
-ResNet - resnet.py
-
-ImageNet pretrained data should be stored in the `cache` directory. The directory is currently empty. Follow the link provided in the individual model files to dowload the data into this directory.
-
+Download the ImageNet pretrained data into the `cache` directory by following the link provided in the model files.
