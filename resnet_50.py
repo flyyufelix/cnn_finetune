@@ -88,7 +88,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
 
 def resnet50_model(img_rows, img_cols, color_type=1, num_class=None):
     """
-    Resnet Model for Keras
+    Resnet 50 Model for Keras
 
     Model Schema is based on 
     https://github.com/fchollet/deep-learning-models/blob/master/resnet50.py
