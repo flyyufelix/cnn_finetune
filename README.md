@@ -1,6 +1,8 @@
 # Fine-tune Convolutional Neural Network in Keras with ImageNet Pretrained Models
 
-Deep neural networks has a huge number of parameters, often in the range of millions. Training a Convolutional Neural Network on a small dataset (one that is smaller than the number of parameters) greatly affects the ConvNet’s ability to generalize, often result in overfitting. Therefore, in practice, one would fine-tune existing networks that are trained on a large dataset like the ImageNet (1.2M labeled images) by continue training it (i.e. running back-propagation) on the smaller dataset we have. Provided that our dataset is not drastically different in context to the ImageNet dataset, the pretrained model will already have learned features that are relevant to our own classification problem. 
+Deep neural networks has a huge number of parameters, often in the range of millions. Training a Convolutional Neural Network on a small dataset (one that is smaller than the number of parameters) greatly affects the ConvNet’s ability to generalize, often result in overfitting. 
+
+Therefore, in practice, one would fine-tune existing networks that are trained on a large dataset like the ImageNet (1.2M labeled images) by continue training it (i.e. running back-propagation) on the smaller dataset we have. Provided that our dataset is not drastically different in context to the ImageNet dataset, the pretrained model will already have learned features that are relevant to our own classification problem. 
 
 The reason to create this repo is that there are not many online resources that provide sample codes for performing fine-tuning, and that there is not a centralized place where we can easily download ImageNet pretrained models for common ConvNet architectures such as VGG, Inception, ResNet, and DenseNet. This repo serves to fill this gap by providing working examples of performing fine-tuning on Cifar10 dataset with ImageNet pretrained models on popular ConvNet implementations.
 
@@ -10,9 +12,9 @@ The examples provided in this repo uses the following techniques for fine-tuning
 
 1. **Truncate the last layer** (softmax layer) of the pretrained network and replace it with our new softmax layer that are relevant to our own problem. For example. if our task is a classification on 10 categories, the new softmax layer of the network will be of 10 categories instead of 1000 categories
 
-2. Use a smaller learning rate to train the network. Since we expect the pre-trained weights to be quite good already as compared to randomly initialized weights, we do not want to distort them too quickly and too much. A common practice is to make the initial learning rate 10 times smaller than the one used for scratch training.
+2. **Use a smaller learning rate** to train the network. Since we expect the pre-trained weights to be quite good already as compared to randomly initialized weights, we do not want to distort them too quickly and too much. A common practice is to make the initial learning rate 10 times smaller than the one used for scratch training.
 
-3. (Optional) Freeze the weights of the first few layers of the pre-trained network. This is because the first few layers capture universal features like curves and edges that are also relevant to our new problem. We want to keep those weights intact. Instead, we will get the network to focus on learning dataset-specific features in the subsequent layers.
+3. (Optional) **Freeze the weights of the first few layers** of the pre-trained network. This is because the first few layers capture universal features like curves and edges that are also relevant to our new problem. We want to keep those weights intact. Instead, we will get the network to focus on learning dataset-specific features in the subsequent layers.
 
 ## ImageNet Pretrained Models
 
@@ -32,7 +34,7 @@ DenseNet-161 | [model (112 MB)](https://drive.google.com/open?id=0Byy2AcGyEVxfVn
 
 ## Usage
 
-First, downlaod the ImageNet pretrained weights (in hdf5 format) to the `imagenet_models` folder. Sample codes for running fine-tuning on Cifar10 is included in [model_name].py. For example, if you want to fine-tune VGG-16, you can type the following command:
+First, download the ImageNet pretrained weights (in hdf5 format) to the `imagenet_models` folder. The code for fine-tuning on Cifar10 is included in [model_name].py. For example, if you want to fine-tune VGG-16, you can type the following command:
 
 ```
 python vgg16.py
