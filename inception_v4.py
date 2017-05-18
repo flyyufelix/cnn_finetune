@@ -2,24 +2,17 @@
 
 import cv2
 import numpy as np
-import copy
 
-from keras.layers.convolutional import MaxPooling2D, Convolution2D, AveragePooling2D
-from keras.layers import Input, merge, Dropout, Dense, Flatten, Activation
+from keras.models import Sequential
+from keras.optimizers import SGD
+from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Dropout, Flatten, merge, Reshape, Activation
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model
-from keras.optimizers import SGD
+from keras.datasets import cifar10
 from keras import backend as K
-from keras.utils.layer_utils import convert_all_kernels_in_model
-from keras.utils.data_utils import get_file
+from keras.utils import np_utils
 
-
-#########################################################################################
-# Implements the Inception Network v4 (http://arxiv.org/pdf/1602.07261v1.pdf) in Keras. #
-#########################################################################################
-
-#TH_WEIGHTS_PATH = 'https://github.com/kentsommer/keras-inceptionV4/releases/download/2.0/inception-v4_weights_th_dim_ordering_th_kernels.h5'
-#TF_WEIGHTS_PATH = 'https://github.com/kentsommer/keras-inceptionV4/releases/download/2.0/inception-v4_weights_tf_dim_ordering_tf_kernels.h5'
+from sklearn.metrics import log_loss
 
 def conv2d_bn(x, nb_filter, nb_row, nb_col,
               border_mode='same', subsample=(1, 1), bias=False):
@@ -210,7 +203,7 @@ def inception_v4_base(input):
     return net
 
 
-def inception_v4_model(img_rows, img_cols, color_type=1, num_classes=None, dropout_keep_prob=0.2):
+def inception_v4_model(img_rows, img_cols, color_type=1, num_classeses=None, dropout_keep_prob=0.2):
     '''
     Inception V4 Model for Keras
 
@@ -224,7 +217,7 @@ def inception_v4_model(img_rows, img_cols, color_type=1, num_classes=None, dropo
     Parameters:
       img_rows, img_cols - resolution of inputs
       channel - 1 for grayscale, 3 for color 
-      num_class - number of class labels for our classification task
+      num_classes - number of class labels for our classification task
     '''
 
     # Input Shape is 299 x 299 x 3 (tf) or 3 x 299 x 299 (th)
@@ -253,10 +246,10 @@ def inception_v4_model(img_rows, img_cols, color_type=1, num_classes=None, dropo
 
     if K.image_dim_ordering() == 'th':
       # Use pre-trained weights for Theano backend
-      weights_path = 'cache/inception-v4_weights_th_dim_ordering_th_kernels.h5'
+      weights_path = 'imagenet_models/inception-v4_weights_th_dim_ordering_th_kernels.h5'
     else:
       # Use pre-trained weights for Tensorflow backend
-      weights_path = 'cache/inception-v4_weights_tf_dim_ordering_tf_kernels.h5'
+      weights_path = 'imagenet_models/inception-v4_weights_tf_dim_ordering_tf_kernels.h5'
 
     model.load_weights(weights_path, by_name=True)
 
@@ -266,7 +259,7 @@ def inception_v4_model(img_rows, img_cols, color_type=1, num_classes=None, dropo
     net_ft = AveragePooling2D((8,8), border_mode='valid')(net)
     net_ft = Dropout(dropout_keep_prob)(net_ft)
     net_ft = Flatten()(net_ft)
-    predictions_ft = Dense(output_dim=num_class, activation='softmax')(net_ft)
+    predictions_ft = Dense(output_dim=num_classes, activation='softmax')(net_ft)
 
     model = Model(inputs, predictions_ft, name='inception_v4')
 
@@ -281,18 +274,30 @@ if __name__ == '__main__':
     # Fine-tune Example
     img_rows, img_cols = 299, 299 # Resolution of inputs
     channel = 3
-    num_class = 10 
+    num_classes = 10 
     batch_size = 16 
-    nb_epoch = 3
+    nb_epoch = 10
+    nb_train_samples = 3000
+    nb_valid_samples = 100
 
-    # TODO: Load training and validation sets
-    X_train, X_valid, Y_train, Y_valid = load_data()
+    # Load cifar10 training and validation sets
+    (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
+
+    # Resize images
+    if K.image_dim_ordering() == 'th':
+      X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
+    else:
+      X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
+    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], num_classes)
+    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], num_classes)
 
     # Load our model
-    model = inception_v4_model(img_rows, img_cols, channel, num_class, dropout_keep_prob=0.2)
+    model = inception_v4_model(img_rows, img_cols, channel, num_classes, dropout_keep_prob=0.2)
 
     # Start Fine-tuning
-    model.fit(train_data, test_data,
+    model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
               shuffle=True,

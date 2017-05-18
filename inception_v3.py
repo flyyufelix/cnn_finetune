@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
+import cv2
+import numpy as np
+
 from keras.models import Sequential
 from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.utils import np_utils
-from keras.models import model_from_json
-from keras.models import Model
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Dropout, Flatten, merge, Reshape, Activation
-from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.layers.normalization import BatchNormalization
-from keras import regularizers
+from keras.models import Model
+from keras.datasets import cifar10
 from keras import backend as K
-from keras.preprocessing import image
+from keras.utils import np_utils
 
-from sklearn.metrics import log_loss, accuracy_score, confusion_matrix
+from sklearn.metrics import log_loss
 
 def conv2d_bn(x, nb_filter, nb_row, nb_col,
               border_mode='same', subsample=(1, 1),
@@ -36,7 +35,7 @@ def conv2d_bn(x, nb_filter, nb_row, nb_col,
     x = BatchNormalization(axis=bn_axis, name=bn_name)(x)
     return x
 
-def inception_v3_model(img_rows, img_cols, channel=1, num_class=None):
+def inception_v3_model(img_rows, img_cols, channel=1, num_classes=None):
     """
     Inception-V3 Model for Keras
 
@@ -49,10 +48,10 @@ def inception_v3_model(img_rows, img_cols, channel=1, num_class=None):
     Parameters:
       img_rows, img_cols - resolution of inputs
       channel - 1 for grayscale, 3 for color 
-      num_class - number of class labels for our classification task
+      num_classes - number of class labels for our classification task
     """
     channel_axis = 1
-    img_input = Input(shape=(channels, img_rows, img_cols))
+    img_input = Input(shape=(channel, img_rows, img_cols))
     x = conv2d_bn(img_input, 32, 3, 3, subsample=(2, 2), border_mode='valid')
     x = conv2d_bn(x, 32, 3, 3, border_mode='valid')
     x = conv2d_bn(x, 64, 3, 3)
@@ -202,14 +201,14 @@ def inception_v3_model(img_rows, img_cols, channel=1, num_class=None):
     model = Model(img_input, x_fc)
 
     # Load ImageNet pre-trained data 
-    model.load_weights('cache/inception_v3_weights_th_dim_ordering_th_kernels.h5')
+    model.load_weights('imagenet_models/inception_v3_weights_th_dim_ordering_th_kernels.h5')
 
     # Truncate and replace softmax layer for transfer learning
     # Cannot use model.layers.pop() since model is not of Sequential() type
     # The method below works since pre-trained weights are stored in layers but not in the model
     x_newfc = AveragePooling2D((8, 8), strides=(8, 8), name='avg_pool')(x)
     x_newfc = Flatten(name='flatten')(x_newfc)
-    x_newfc = Dense(num_class, activation='softmax', name='predictions')(x_newfc)
+    x_newfc = Dense(num_classes, activation='softmax', name='predictions')(x_newfc)
 
     # Create another model with our customized softmax
     model = Model(img_input, x_newfc)
@@ -231,18 +230,30 @@ if __name__ == '__main__':
     # Fine-tune Example
     img_rows, img_cols = 299, 299 # Resolution of inputs
     channel = 3
-    num_class = 10 
+    num_classes = 10 
     batch_size = 16 
-    nb_epoch = 3
+    nb_epoch = 10
+    nb_train_samples = 3000
+    nb_valid_samples = 100
 
-    # TODO: Load training and validation sets
-    X_train, X_valid, Y_train, Y_valid = load_data()
+    # Load cifar10 training and validation sets
+    (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
+
+    # Resize images
+    if K.image_dim_ordering() == 'th':
+      X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
+    else:
+      X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
+    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], num_classes)
+    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], num_classes)
 
     # Load our model
-    model = inception_v3_model(img_rows, img_cols, channel, num_class)
+    model = inception_v3_model(img_rows, img_cols, channel, num_classes)
 
     # Start Fine-tuning
-    model.fit(train_data, test_data,
+    model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
               shuffle=True,

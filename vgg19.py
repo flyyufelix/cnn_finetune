@@ -1,21 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import cv2
+import numpy as np
+
 from keras.models import Sequential
 from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.utils import np_utils
-from keras.models import model_from_json
-from keras.models import Model
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Dropout, Flatten, merge, Reshape, Activation
-from keras.layers.advanced_activations import LeakyReLU, PReLU
-from keras.layers.normalization import BatchNormalization
-from keras import regularizers
-from keras import backend as K
-from keras.preprocessing import image
+from keras.datasets import cifar10
+from keras.utils import np_utils
 
-from sklearn.metrics import log_loss, accuracy_score, confusion_matrix
+from sklearn.metrics import log_loss
 
-def vgg_std19_model(img_rows, img_cols, channel=1, num_class=None):
+def vgg19_model(img_rows, img_cols, channel=1, num_classes=None):
     """
     VGG 19 Model for Keras
 
@@ -28,7 +24,7 @@ def vgg_std19_model(img_rows, img_cols, channel=1, num_class=None):
     Parameters:
       img_rows, img_cols - resolution of inputs
       channel - 1 for grayscale, 3 for color 
-      num_class - number of class labels for our classification task
+      num_classes - number of class labels for our classification task
     """
   
     model = Sequential()
@@ -83,13 +79,13 @@ def vgg_std19_model(img_rows, img_cols, channel=1, num_class=None):
     model.add(Dense(1000, activation='softmax'))
 
     # Loads ImageNet pre-trained data
-    model.load_weights('cache/vgg19_weights.h5')
+    model.load_weights('imagenet_models/vgg19_weights.h5')
 
     # Truncate and replace softmax layer for transfer learning
     model.layers.pop()
     model.outputs = [model.layers[-1].output]
     model.layers[-1].outbound_nodes = []
-    model.add(Dense(num_class, activation='softmax'))
+    model.add(Dense(num_classes, activation='softmax'))
 
     # Learning rate is changed to 0.001
     sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
@@ -109,18 +105,30 @@ if __name__ == '__main__':
     # Fine-tune Example
     img_rows, img_cols = 224, 224 # Resolution of inputs
     channel = 3
-    num_class = 10 
+    num_classes = 10 
     batch_size = 16 
-    nb_epoch = 3
+    nb_epoch = 10
+    nb_train_samples = 3000
+    nb_valid_samples = 100
 
-    # TODO: Load training and validation sets
-    X_train, X_valid, Y_train, Y_valid = load_data()
+    # Load cifar10 training and validation sets
+    (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
+
+    # Resize images
+    if K.image_dim_ordering() == 'th':
+      X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
+    else:
+      X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
+    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], num_classes)
+    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], num_classes)
 
     # Load our model
-    model = vgg_std19_model(img_rows, img_cols, channel, num_class)
+    model = vgg19_model(img_rows, img_cols, channel, num_classes)
 
     # Start Fine-tuning
-    model.fit(train_data, test_data,
+    model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
               shuffle=True,

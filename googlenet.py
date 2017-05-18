@@ -1,75 +1,22 @@
 # -*- coding: utf-8 -*-
 
-from keras.models import Sequential
+import cv2
+import numpy as np
+
 from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.utils import np_utils
-from keras.models import model_from_json
-from keras.models import Model
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Dropout, Flatten, merge, Reshape, Activation
-from keras.layers.advanced_activations import LeakyReLU, PReLU
-from keras.layers.normalization import BatchNormalization
-from keras import regularizers
+from keras.datasets import cifar10
 from keras import backend as K
-from keras.preprocessing import image
+from keras.utils import np_utils
+from keras.regularizers import l2
+from keras.models import Model
 
-from keras.layers.core import Layer
-import theano.tensor as T
+from sklearn.metrics import log_loss
 
-from sklearn.metrics import log_loss, accuracy_score, confusion_matrix
-
-class LRN(Layer):
-    """
-    Custom Layer for Local Response Normalization (LRN)
-    """
-
-    def __init__(self, alpha=0.0001,k=1,beta=0.75,n=5, **kwargs):
-        self.alpha = alpha
-        self.k = k
-        self.beta = beta
-        self.n = n
-        super(LRN, self).__init__(**kwargs)
-    
-    def call(self, x, mask=None):
-        b, ch, r, c = x.shape
-        half_n = self.n // 2 # half the local region
-        input_sqr = T.sqr(x) # square the input
-        extra_channels = T.alloc(0., b, ch + 2*half_n, r, c) # make an empty tensor with zero pads along channel dimension
-        input_sqr = T.set_subtensor(extra_channels[:, half_n:half_n+ch, :, :],input_sqr) # set the center to be the squared input
-        scale = self.k # offset for the scale
-        norm_alpha = self.alpha / self.n # normalized alpha
-        for i in range(self.n):
-            scale += norm_alpha * input_sqr[:, i:i+ch, :, :]
-        scale = scale ** self.beta
-        x = x / scale
-        return x
-
-    def get_config(self):
-        config = {"alpha": self.alpha,
-                  "k": self.k,
-                  "beta": self.beta,
-                  "n": self.n}
-        base_config = super(LRN, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+from googlenet_custom_layers import LRN, PoolHelper
 
 
-class PoolHelper(Layer):
-    """
-    Reconcile Keras and Caffe weights
-    """
-    
-    def __init__(self, **kwargs):
-        super(PoolHelper, self).__init__(**kwargs)
-    
-    def call(self, x, mask=None):
-        return x[:,:,1:,1:]
-    
-    def get_config(self):
-        config = {}
-        base_config = super(PoolHelper, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-def googlenet_model(img_rows, img_cols, channel=1, num_class=None):
+def googlenet_model(img_rows, img_cols, channel=1, num_classes=None):
     """
     GoogLeNet a.k.a. Inception v1 for Keras
 
@@ -85,7 +32,7 @@ def googlenet_model(img_rows, img_cols, channel=1, num_class=None):
     Parameters:
       img_rows, img_cols - resolution of inputs
       channel - 1 for grayscale, 3 for color 
-      num_class - number of class labels for our classification task
+      num_classes - number of class labels for our classification task
     """
     
     input = Input(shape=(channel, img_rows, img_cols))
@@ -216,16 +163,16 @@ def googlenet_model(img_rows, img_cols, channel=1, num_class=None):
     model = Model(input=input, output=[loss1_classifier_act,loss2_classifier_act,loss3_classifier_act])
     
     # Load ImageNet pre-trained data 
-    model.load_weights('cache/inception_v1_weights.h5')
+    model.load_weights('imagenet_models/googlenet_weights.h5')
 
     # Truncate and replace softmax layer for transfer learning
     # Cannot use model.layers.pop() since model is not of Sequential() type
     # The method below works since pre-trained weights are stored in layers but not in the model
-    loss3_classifier_statefarm = Dense(num_class,name='loss3/classifier',W_regularizer=l2(0.0002))(pool5_drop_7x7_s1)
+    loss3_classifier_statefarm = Dense(num_classes,name='loss3/classifier',W_regularizer=l2(0.0002))(pool5_drop_7x7_s1)
     loss3_classifier_act_statefarm = Activation('softmax',name='prob')(loss3_classifier_statefarm)
-    loss2_classifier_statefarm = Dense(num_class,name='loss2/classifier',W_regularizer=l2(0.0002))(loss2_drop_fc)
+    loss2_classifier_statefarm = Dense(num_classes,name='loss2/classifier',W_regularizer=l2(0.0002))(loss2_drop_fc)
     loss2_classifier_act_statefarm = Activation('softmax')(loss2_classifier_statefarm)
-    loss1_classifier_statefarm = Dense(num_class,name='loss1/classifier',W_regularizer=l2(0.0002))(loss1_drop_fc)
+    loss1_classifier_statefarm = Dense(num_classes,name='loss1/classifier',W_regularizer=l2(0.0002))(loss1_drop_fc)
     loss1_classifier_act_statefarm = Activation('softmax')(loss1_classifier_statefarm)
 
     # Create another model with our customized softmax
@@ -248,15 +195,27 @@ if __name__ == '__main__':
     # Fine-tune Example
     img_rows, img_cols = 224, 224 # Resolution of inputs
     channel = 3
-    num_class = 10 
+    num_classes = 10 
     batch_size = 16 
-    nb_epoch = 3
+    nb_epoch = 10
+    nb_train_samples = 3000
+    nb_valid_samples = 100
 
-    # TODO: Load training and validation sets
-    X_train, X_valid, Y_train, Y_valid = load_data()
+    # Load cifar10 training and validation sets
+    (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
+
+    # Resize images
+    if K.image_dim_ordering() == 'th':
+      X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
+    else:
+      X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
+      X_valid = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
+    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], num_classes)
+    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], num_classes)
 
     # Load our model
-    model = googlenet_model(img_rows, img_cols, channel, num_class)
+    model = googlenet_model(img_rows, img_cols, channel, num_classes)
 
     # Start Fine-tuning. 
     # Notice that googlenet takes 3 sets of labels for outputs, one for each auxillary classifier
