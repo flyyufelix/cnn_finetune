@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
 
-import cv2
-import numpy as np
-
 from keras.models import Sequential
 from keras.optimizers import SGD
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Dropout, Flatten, merge, Reshape, Activation
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model
-from keras.datasets import cifar10
 from keras import backend as K
-from keras.utils import np_utils
 
 from sklearn.metrics import log_loss
 
-from custom_layers import Scale
+from custom_layers.scale_layer import Scale
+
+from load_cifar10 import load_cifar10_data
 
 import sys
 sys.setrecursionlimit(3000)
@@ -179,27 +176,16 @@ def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None):
 
 if __name__ == '__main__':
 
-    # Fine-tune Example
+    # Example to fine-tune on 3000 samples from Cifar10
+
     img_rows, img_cols = 224, 224 # Resolution of inputs
     channel = 3
     num_classes = 10 
     batch_size = 8
     nb_epoch = 10
-    nb_train_samples = 3000
-    nb_valid_samples = 100
 
-    # Load cifar10 training and validation sets
-    (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
-
-    # Resize images
-    if K.image_dim_ordering() == 'th':
-      X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
-      X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
-    else:
-      X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
-      X_valid = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
-    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], num_classes)
-    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], num_classes)
+    # Load Cifar10 data. Please implement your own load_data() module for your own dataset
+    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols)
 
     # Load our model
     model = resnet152_model(img_rows, img_cols, channel, num_classes)
