@@ -2,9 +2,12 @@
 
 from keras.layers.core import Layer
 from keras.engine import InputSpec
-from keras import initializations
 from keras import backend as K
 import theano.tensor as T
+try:
+    from keras import initializations
+except ImportError:
+    from keras import initializers as initializations
 
 class LRN(Layer):
     """
