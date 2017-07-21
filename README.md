@@ -14,8 +14,35 @@ python vgg16.py
 
 The code will automatically download Cifar10 dataset and performs fine-tuning with VGG-16. Please be aware that it might take some time (up to minutes) for the model to compile and load the ImageNet weights. 
 
-If you wish to perform fine-tuning on your own dataset, you have to replace the module which loads the Cifar10 dataset with your own load_data() module to load your own dataset.
+## Finetune with your own dataset
 
+If you wish to perform fine-tuning on your own dataset, you have to replace the module which loads the Cifar10 dataset with your own load_data() module to load your own dataset. 
+
+```
+X_train, Y_train, X_valid, Y_valid = load_data()
+```
+
+In particular, the following image preprocessing step have to be performed to get the format of the dataset compatible with the pretrained models:
+
+```
+# For Tensorflow 
+# Switch RGB to BGR order 
+x = x[:, :, :, ::-1]  
+
+# Subtract ImageNet mean pixel 
+x[:, :, :, 0] -= 103.939
+x[:, :, :, 1] -= 116.779
+x[:, :, :, 2] -= 123.68
+
+# For Theano
+# Switch RGB to BGR order 
+x = x[:, ::-1, :, :]
+
+# Subtract ImageNet mean pixel 
+x[:, 0, :, :] -= 103.939
+x[:, 1, :, :] -= 116.779
+x[:, 2, :, :] -= 123.68
+```
 
 ## ImageNet Pretrained Models
 
